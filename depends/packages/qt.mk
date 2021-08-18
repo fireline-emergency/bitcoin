@@ -12,6 +12,7 @@ $(package)_patches+= drop_lrelease_dependency.patch no_sdk_version_check.patch
 $(package)_patches+= fix_lib_paths.patch fix_android_pch.patch
 $(package)_patches+= qtbase-moc-ignore-gcc-macro.patch fix_limits_header.patch
 
+# Update OSX_QT_TRANSLATIONS when this is updated
 $(package)_qttranslations_file_name=qttranslations-$($(package)_suffix)
 $(package)_qttranslations_sha256_hash=577b0668a777eb2b451c61e8d026d79285371597ce9df06b6dee6c814164b7c3
 
