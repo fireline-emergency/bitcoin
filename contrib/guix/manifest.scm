@@ -80,6 +80,10 @@ http://www.linuxfromscratch.org/hlfs/view/development/chapter05/gcc-pass1.html"
                  (("-rpath=") "-rpath-link="))
                #t))))))))
 
+(define (make-binutils-with-mingw-w64-disable-flags xbinutils)
+  (package-with-extra-patches xbinutils
+    (search-our-patches "binutils-mingw-w64-disable-flags.patch")))
+
 (define (make-cross-toolchain target
                               base-gcc-for-libc
                               base-kernel-headers
@@ -152,7 +156,7 @@ chain for " target " development."))
 (define* (make-bitcoin-cross-toolchain target
                                        #:key
                                        (base-gcc-for-libc gcc-7)
-                                       (base-kernel-headers linux-libre-headers-5.4)
+                                       (base-kernel-headers linux-libre-headers-4.9)
                                        (base-libc (make-glibc-without-ssp glibc-2.24))
                                        (base-gcc (make-gcc-rpath-link base-gcc)))
   "Convenience wrapper around MAKE-CROSS-TOOLCHAIN with default values
@@ -168,7 +172,7 @@ desirable for building Bitcoin Core release binaries."
 
 (define (make-mingw-pthreads-cross-toolchain target)
   "Create a cross-compilation toolchain package for TARGET"
-  (let* ((xbinutils (cross-binutils target))
+  (let* ((xbinutils (make-binutils-with-mingw-w64-disable-flags (cross-binutils target)))
          (pthreads-xlibc mingw-w64-x86_64-winpthreads)
          (pthreads-xgcc (make-gcc-with-pthreads
                          (cross-gcc target
@@ -643,7 +647,9 @@ inspecting signatures in Mach-O binaries.")
                  osslsigncode))
           ((string-contains target "-linux-")
            (list (cond ((string-contains target "riscv64-")
-                        (make-bitcoin-cross-toolchain target #:base-libc glibc-2.27/bitcoin-patched))
+                        (make-bitcoin-cross-toolchain target
+                                                      #:base-libc glibc-2.27/bitcoin-patched
+                                                      #:base-kernel-headers linux-libre-headers-4.19))
                        (else
                         (make-bitcoin-cross-toolchain target)))))
           ((string-contains target "darwin")

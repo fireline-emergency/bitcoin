@@ -47,13 +47,21 @@ information in the debug log about your I2P configuration and connections. Run
 `bitcoin-cli help logging` for more information.
 
 It is possible to restrict outgoing connections in the usual way with
-`onlynet=i2p`. I2P support was added to Bitcoin Core in version 22.0 (mid 2021)
+`onlynet=i2p`. I2P support was added to Bitcoin Core in version 22.0 (mid-2021)
 and there may be fewer I2P peers than Tor or IP ones. Therefore, using
 `onlynet=i2p` alone (without other `onlynet=`) may make a node more susceptible
 to [Sybil attacks](https://en.bitcoin.it/wiki/Weaknesses#Sybil_attack). Use
 `bitcoin-cli -addrinfo` to see the number of I2P addresses known to your node.
 
-## I2P related information in Bitcoin Core
+Another consideration with `onlynet=i2p` is that the initial blocks download
+phase when syncing up a new node can be very slow. This phase can be sped up by
+using other networks, for instance `onlynet=onion`, at the same time.
+
+In general, a node can be run with both onion and I2P hidden services (or
+any/all of IPv4/IPv6/onion/I2P), which can provide a potential fallback if one
+of the networks has issues.
+
+## I2P-related information in Bitcoin Core
 
 There are several ways to see your I2P address in Bitcoin Core:
 - in the debug log (grep for `AddLocal`, the I2P address ends in `.b32.i2p`)
@@ -70,3 +78,18 @@ RPC.
 
 Bitcoin Core uses the [SAM v3.1](https://geti2p.net/en/docs/api/samv3) protocol
 to connect to the I2P network. Any I2P router that supports it can be used.
+
+## Ports in I2P and Bitcoin Core
+
+Bitcoin Core uses the [SAM v3.1](https://geti2p.net/en/docs/api/samv3)
+protocol. One particularity of SAM v3.1 is that it does not support ports,
+unlike newer versions of SAM (v3.2 and up) that do support them and default the
+port numbers to 0. From the point of view of peers that use newer versions of
+SAM or other protocols that support ports, a SAM v3.1 peer is connecting to them
+on port 0, from source port 0.
+
+To allow future upgrades to newer versions of SAM, Bitcoin Core sets its
+listening port to 0 when listening for incoming I2P connections and advertises
+its own I2P address with port 0. Furthermore, it will not attempt to connect to
+I2P addresses with a non-zero port number because with SAM v3.1 the destination
+port (`TO_PORT`) is always set to 0 and is not in the control of Bitcoin Core.

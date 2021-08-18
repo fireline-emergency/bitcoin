@@ -141,12 +141,11 @@ ChainTestingSetup::ChainTestingSetup(const std::string& chainName, const std::ve
     m_node.scheduler->m_service_thread = std::thread(util::TraceThread, "scheduler", [&] { m_node.scheduler->serviceQueue(); });
     GetMainSignals().RegisterBackgroundSignalScheduler(*m_node.scheduler);
 
-    pblocktree.reset(new CBlockTreeDB(1 << 20, true));
-
     m_node.fee_estimator = std::make_unique<CBlockPolicyEstimator>();
     m_node.mempool = std::make_unique<CTxMemPool>(m_node.fee_estimator.get(), 1);
 
     m_node.chainman = std::make_unique<ChainstateManager>();
+    m_node.chainman->m_blockman.m_block_tree_db = std::make_unique<CBlockTreeDB>(1 << 20, true);
 
     // Start script-checking threads. Set g_parallel_script_checks to true so they are used.
     constexpr int script_check_threads = 2;
@@ -169,7 +168,6 @@ ChainTestingSetup::~ChainTestingSetup()
     m_node.scheduler.reset();
     m_node.chainman->Reset();
     m_node.chainman.reset();
-    pblocktree.reset();
 }
 
 TestingSetup::TestingSetup(const std::string& chainName, const std::vector<const char*>& extra_args)
@@ -180,7 +178,7 @@ TestingSetup::TestingSetup(const std::string& chainName, const std::vector<const
     // instead of unit tests, but for now we need these here.
     RegisterAllCoreRPCCommands(tableRPC);
 
-    m_node.chainman->InitializeChainstate(*m_node.mempool);
+    m_node.chainman->InitializeChainstate(m_node.mempool.get());
     m_node.chainman->ActiveChainstate().InitCoinsDB(
         /* cache_size_bytes */ 1 << 23, /* in_memory */ true, /* should_wipe */ false);
     assert(!m_node.chainman->ActiveChainstate().CanFlushToDisk());
@@ -195,11 +193,11 @@ TestingSetup::TestingSetup(const std::string& chainName, const std::vector<const
         throw std::runtime_error(strprintf("ActivateBestChain failed. (%s)", state.ToString()));
     }
 
-    m_node.addrman = std::make_unique<CAddrMan>();
+    m_node.addrman = std::make_unique<CAddrMan>(/* deterministic */ false, /* consistency_check_ratio */ 0);
     m_node.banman = std::make_unique<BanMan>(m_args.GetDataDirBase() / "banlist", nullptr, DEFAULT_MISBEHAVING_BANTIME);
     m_node.connman = std::make_unique<CConnman>(0x1337, 0x1337, *m_node.addrman); // Deterministic randomness for tests.
     m_node.peerman = PeerManager::make(chainparams, *m_node.connman, *m_node.addrman,
-                                       m_node.banman.get(), *m_node.scheduler, *m_node.chainman,
+                                       m_node.banman.get(), *m_node.chainman,
                                        *m_node.mempool, false);
     {
         CConnman::Options options;
@@ -294,7 +292,7 @@ CMutableTransaction TestChain100Setup::CreateValidMempoolTransaction(CTransactio
     input_coins.insert({outpoint_to_spend, utxo_to_spend});
     // - Default signature hashing type
     int nHashType = SIGHASH_ALL;
-    std::map<int, std::string> input_errors;
+    std::map<int, bilingual_str> input_errors;
     assert(SignTransaction(mempool_txn, &keystore, input_coins, nHashType, input_errors));
 
     // If submit=true, add transaction to the mempool.

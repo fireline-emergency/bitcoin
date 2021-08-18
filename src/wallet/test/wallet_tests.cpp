@@ -20,6 +20,7 @@
 #include <util/translation.h>
 #include <validation.h>
 #include <wallet/coincontrol.h>
+#include <wallet/test/util.h>
 #include <wallet/test/wallet_test_fixture.h>
 
 #include <boost/test/unit_test.hpp>
@@ -68,7 +69,7 @@ static CMutableTransaction TestSimpleSpend(const CTransaction& from, uint32_t in
     keystore.AddKey(key);
     std::map<COutPoint, Coin> coins;
     coins[mtx.vin[0].prevout].out = from.vout[index];
-    std::map<int, std::string> input_errors;
+    std::map<int, bilingual_str> input_errors;
     BOOST_CHECK(SignTransaction(mtx, &keystore, coins, SIGHASH_ALL, input_errors));
     return mtx;
 }
@@ -480,20 +481,7 @@ public:
     ListCoinsTestingSetup()
     {
         CreateAndProcessBlock({}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
-        wallet = std::make_unique<CWallet>(m_node.chain.get(), "", CreateMockWalletDatabase());
-        {
-            LOCK2(wallet->cs_wallet, ::cs_main);
-            wallet->SetLastBlockProcessed(m_node.chainman->ActiveChain().Height(), m_node.chainman->ActiveChain().Tip()->GetBlockHash());
-        }
-        wallet->LoadWallet();
-        AddKey(*wallet, coinbaseKey);
-        WalletRescanReserver reserver(*wallet);
-        reserver.reserve();
-        CWallet::ScanResult result = wallet->ScanForWalletTransactions(m_node.chainman->ActiveChain().Genesis()->GetBlockHash(), 0 /* start_height */, {} /* max_height */, reserver, false /* update */);
-        BOOST_CHECK_EQUAL(result.status, CWallet::ScanResult::SUCCESS);
-        BOOST_CHECK_EQUAL(result.last_scanned_block, m_node.chainman->ActiveChain().Tip()->GetBlockHash());
-        BOOST_CHECK_EQUAL(*result.last_scanned_height, m_node.chainman->ActiveChain().Height());
-        BOOST_CHECK(result.last_failed_block.IsNull());
+        wallet = CreateSyncedWallet(*m_node.chain, m_node.chainman->ActiveChain(), coinbaseKey);
     }
 
     ~ListCoinsTestingSetup()
@@ -601,7 +589,7 @@ BOOST_FIXTURE_TEST_CASE(wallet_disableprivkeys, TestChain100Setup)
     wallet->SetWalletFlag(WALLET_FLAG_DISABLE_PRIVATE_KEYS);
     BOOST_CHECK(!wallet->TopUpKeyPool(1000));
     CTxDestination dest;
-    std::string error;
+    bilingual_str error;
     BOOST_CHECK(!wallet->GetNewDestination(OutputType::BECH32, "", dest, error));
 }
 
